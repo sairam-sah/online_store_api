@@ -6,6 +6,7 @@ const Product = require('../model/product');
 const { uploadCategory } = require('../uploadFile');
 const multer = require('multer');
 const asyncHandler = require('express-async-handler');
+const uploader = require('../middleware/uploder');
 
 // Get all categories
 router.get('/', asyncHandler(async (req, res) => {
@@ -32,49 +33,33 @@ router.get('/:id', asyncHandler(async (req, res) => {
 }));
 
 // Create a new category with image upload
-router.post('/', asyncHandler(async (req, res) => {
-    try {
-        uploadCategory.single('img')(req, res, async function (err) {
-            if (err instanceof multer.MulterError) {
-                if (err.code === 'LIMIT_FILE_SIZE') {
-                    err.message = 'File size is too large. Maximum filesize is 5MB.';
-                }
-                console.log(`Add category: ${err}`);
-                return res.json({ success: false, message: err });
-            } else if (err) {
-                console.log(`Add category: ${err}`);
-                return res.json({ success: false, message: err });
-            }
-            const { name } = req.body;
-            let imageUrl = 'no_url';
-            if (req.file) {
-                imageUrl = `http://localhost:3000/image/category/${req.file.filename}`;
-            }
-            console.log('url ', req.file)
+router.post('/', 
+  uploader('img'),  // This handles upload + stores req.body.imageUrl
+  asyncHandler(async (req, res) => {
+    const { name } = req.body;
+    const imageUrl = req.body.imageUrl || 'no_url';
 
-            if (!name) {
-                return res.status(400).json({ success: false, message: "Name is required." });
-            }
-
-            try {
-                const newCategory = new Category({
-                    name: name,
-                    image: imageUrl
-                });
-                await newCategory.save();
-                res.json({ success: true, message: "Category created successfully.", data: null });
-            } catch (error) {
-                console.error("Error creating category:", error);
-                res.status(500).json({ success: false, message: error.message });
-            }
-
-        });
-
-    } catch (err) {
-        console.log(`Error creating category: ${err.message}`);
-        return res.status(500).json({ success: false, message: err.message });
+    if (!name) {
+      return res.status(400).json({ success: false, message: "Name is required." });
     }
-}));
+
+    try {
+      const newCategory = new Category({
+        name: name,
+        image: imageUrl,
+      });
+
+      await newCategory.save();
+
+      res.json({ success: true, message: "Category created successfully.", data: newCategory });
+    } catch (error) {
+      console.error("Error creating category:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  })
+);
+
+module.exports = router;
 
 // Update a category
 router.put('/:id', asyncHandler(async (req, res) => {
@@ -148,9 +133,6 @@ router.delete('/:id', asyncHandler(async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 }));
-
-
-
 
 
 
